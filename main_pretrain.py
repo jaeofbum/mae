@@ -24,6 +24,11 @@ from torchvision import datasets
 import wandb
 import argparse
 import timm
+from PIL import Image
+
+from torch.utils.data import Dataset
+from torchvision import transforms
+from PIL import Image
 
 assert timm.__version__ == "0.4.5"  # version check
 import timm.optim.optim_factory as optim_factory
@@ -115,6 +120,25 @@ def get_args_parser():
 
     return parser
 
+# class CustomDataset(Dataset):
+#     def __init__(self, folder_path, transform=None):
+#         self.folder_path = folder_path
+#         self.image_paths = [os.path.join(folder_path, img) for img in os.listdir(folder_path) if img.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+#         self.transform = transform
+#     def __len__(self):
+#         return len(self.image_paths)
+
+#     def __getitem__(self, idx):
+#         image_path = self.image_paths[idx]
+#         image = Image.open(image_path)
+#         image = np.stack([image] * 3, axis=-1)
+#         # 이미지 변환
+#         if self.transform:
+#             # numpy.ndarray를 PIL Image로 변환
+#             image = transforms.ToPILImage()(image)
+#             image = self.transform(image)
+
+#         return image, 0
 
 def main(args):
     misc.init_distributed_mode(args)
@@ -132,15 +156,15 @@ def main(args):
 
     cudnn.benchmark = True
     
-    
-    # simple augmentation
     transform_train = transforms.Compose([
+            transforms.Grayscale(num_output_channels=3),
             transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+            transforms.RandomVerticalFlip(),
+            transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 2.0)),
+            transforms.ToTensor()])
+    
     dataset_train = datasets.ImageFolder(os.path.join(args.data_path), transform=transform_train)
-    print(dataset_train)
 
     if True:  # args.distributed:
         num_tasks = misc.get_world_size()
@@ -208,7 +232,7 @@ def main(args):
             log_writer=log_writer,
             args=args
         )
-        if args.output_dir and (epoch % 20 == 0 or epoch + 1 == args.epochs):
+        if args.output_dir and (epoch % 1 == 0 or epoch + 1 == args.epochs):
             misc.save_model(
                 args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
                 loss_scaler=loss_scaler, epoch=epoch)
